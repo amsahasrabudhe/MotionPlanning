@@ -13,7 +13,6 @@ size = (0,0)								# Size of the environment
 # Parameters that can be tweaked
 K = 10										# Number of samples to generate at each iteration
 stepSize = 10								# Step size for each node connected to the tree
-tree = []
 
 start = (150, 150)
 goal = (410, 360)
@@ -21,6 +20,7 @@ goal = (410, 360)
 red = (255, 0, 0)
 green = (0, 255, 0)
 
+count = 0
 
 def readEnvironmentFromImage(filename):
 
@@ -56,7 +56,12 @@ def pathToGoal(node):
 		pygame.display.update()
 
 
-def generateRRT(env, screen):
+def generateRRT(env, screen, root, mode):
+
+	global count
+
+	tree = []
+	tree.append(root)
 
 	while True:
 
@@ -81,38 +86,58 @@ def generateRRT(env, screen):
 
 				# Create new node in the direction of the random node based on stepSize
 
+				breakFlag = None
+
+				dist = minDist
 				newXY = None
-				if minDist>stepSize:
+				while True:
+				
+					if dist>stepSize:
 
-					theta = atan2(randXY[1]-nearestNodeXY[1], randXY[0]-nearestNodeXY[0])					
-					x = (int) (nearestNodeXY[0] + stepSize*cos(theta))
-					y = (int) (nearestNodeXY[1] + stepSize*sin(theta))
+						theta = atan2(randXY[1]-nearestNodeXY[1], randXY[0]-nearestNodeXY[0])					
+						x = (int) (nearestNodeXY[0] + stepSize*cos(theta))
+						y = (int) (nearestNodeXY[1] + stepSize*sin(theta))
 
-					newXY = (x,y)
-					minDist = stepSize
+						newXY = (x,y)
+						dist = stepSize
 
-				else:
-					newXY = randXY
+					else:
+						newXY = randXY
+						breakFlag = "reached"
 
-				if env[newXY[0]][newXY[1]]==0:
-					newNode = Node(newXY, minDist, tree[nearestNodeIndex])
-					tree.append(newNode)
-					pygame.draw.line(screen, red, newXY, nearestNodeXY)
+					if env[newXY[0]][newXY[1]]==0:
+						newNode = Node(newXY, dist, tree[nearestNodeIndex])
+						tree.append(newNode)
+						pygame.draw.line(screen, red, newXY, nearestNodeXY)
+						count += 1
 
-					goalDist = getDistance(newXY, goal)
-					if goalDist<stepSize:
-						
-						goalNode = Node(goal, goalDist, tree[-1])
-						tree.append(goalNode)
-						pygame.draw.line(screen, red, newXY, goal)
-						pygame.display.update()
+						goalDist = getDistance(newXY, goal)
+						if goalDist<stepSize:
+							
+							goalNode = Node(goal, goalDist, tree[-1])
+							tree.append(goalNode)
+							pygame.draw.line(screen, red, newXY, goal)
+							pygame.display.update()
+							count += 1
 
-						print "Found path of cost :",goalNode.cumulativeCost
-						return pathToGoal(goalNode)
+							print "Found path of cost :",goalNode.cumulativeCost
+							print "Total samples generated :",count
+							return pathToGoal(goalNode)
 
-				else:
-					nodeNum -= 1
+					else:
+						nodeNum -= 1
+						breakFlag = "obstacle"
 
+					if mode=="extend":
+						break
+					elif mode=="connect":
+
+						nearestNodeIndex = -1
+						nearestNodeXY = newXY
+						if breakFlag=="reached" or breakFlag=="obstacle":
+							break
+
+					dist = getDistance(randXY, nearestNodeXY)
 			else:
 				nodeNum -= 1
 
@@ -123,20 +148,31 @@ def generateRRT(env, screen):
 		pygame.display.update()
 
 
-# MAIN FUNCTION CALLS
+def main():
 
-random.seed(time.time())
+	global screen
 
-image, env = readEnvironmentFromImage('1.png')
-screen = initializePygameDisplay(env.shape, image)
+	mode = ""
 
-root = Node(start, 0, None)
-tree.append(root)
+	if len(sys.argv)==1:
+		print "Please specify the mode (extend/connect) as last argument!!"
+		return
 
-pygame.draw.line(screen, green, goal, goal, 2)
-generateRRT(env, screen)
+	if (sys.argv[1]!="extend" and sys.argv[1]!="connect"):
+		print "\nInput RRT mode correctly!\nEither 'extend' or 'connect'\n"
+		return
 
-#pygame.draw.line(screen, red, start, goal, 3)
-#pygame.display.update()
+	random.seed(time.time())
 
-time.sleep(5)
+	image, env = readEnvironmentFromImage('narrower.png')
+	screen = initializePygameDisplay(env.shape, image)
+
+	root = Node(start, 0, None)
+
+	pygame.draw.line(screen, green, goal, goal, 2)
+	generateRRT(env, screen, root, sys.argv[1])
+
+	time.sleep(5)
+
+
+main()
